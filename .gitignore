@@ -1,0 +1,5 @@
+## Obviously for security reasons
+.env
+
+## Dump files
+user/test.json

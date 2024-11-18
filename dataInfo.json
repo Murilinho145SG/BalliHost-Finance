@@ -1,0 +1,16 @@
+{
+  "Pc": {
+    "ip": "ipAddress",
+    "auth": false,
+    "verified": false,
+    "magic_link_id": "token",
+    "magic_link_expiration": "00-00-00 00:00:00"
+  },
+  "Android": {
+    "ip": "ipAddress",
+    "magic_link_id": "token",
+    "auth": false,
+    "verified": false,
+    "magic_link_expiration": "00-00-00 00:00:00"
+  }
+}

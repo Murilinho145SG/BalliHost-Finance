@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificação de E-mail Stripe</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f7;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: -20px;
+        }
+        .logos {
+            width: 4.5rem;
+            height: 4.5rem;
+        }
+        h1 {
+            color: #015eea;
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        p {
+            margin-bottom: 20px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #015eea;
+            color: #ffffff !important;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: #8898aa;
+        }
+        .support-link {
+            color: #015eea;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="logo">
+        <img src="https://node1.ballihost.com.br:9090/logo" alt="BalliHost Logo" class="logos">
+    </div>
+    <h1>BalliHost</h1>
+    <p>Agradecemos por criar uma conta BalliHost. Verifique seu e-mail para poder começar em seguida.</p>
+    <p style="text-align: center;">
+        <a href="http://localhost:3000/register/verify/%TOKEN%" class="button" style="color: #ffffff;">Verificar e-mail</a>
+    </p>
+    <p>Depois que o e-mail for verificado, você poderá começar a configurar sua conta. Se tiver dúvidas ou precisar de ajuda, <a href="#" class="support-link">acesse nosso site de suporte</a>.</p>
+    <div class="footer">
+        <p>BalliHost ® Todos os Direitos Reservados</p>
+    </div>
+</div>
+</body>
+</html>
