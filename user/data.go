@@ -288,7 +288,6 @@ func HandlerMagicLink(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			emailHandler.SendMagicLinkVerification(email["email"], r.Header.Get("User-Agent"))
 		} else {
-			//.WriteHeader(http.StatusCreated)
 			account.ValidMagicLink(r.Header.Get("User-Agent"), userUuid)
 			tokenJwt := account.GenerateJWT(userUuid)
 
@@ -306,4 +305,8 @@ func HandlerMagicLink(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusBadRequest)
 	}
+}
+
+func HandlerLogin(w http.ResponseWriter, r *http.Request) {
+	
 }

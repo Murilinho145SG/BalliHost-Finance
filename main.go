@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"prodata/bank/handler"
 	"prodata/database/account"
@@ -15,10 +16,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
+	
+	http.HandleFunc("/account/login", user.HandlerLogin)
 	http.HandleFunc("/account/verify/", user.HandlerMagicLink)
 	http.HandleFunc("/account/register", user.HandlerRegister)
-	http.HandleFunc("/account/auth", account.Authenticate(account.ProtectedRoute))
+	http.HandleFunc("/account/auth", account.AuthenticateAdmin(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "Acesso concedido, Administrador")
+	}))
 	http.HandleFunc("/mercadopago/webhook", handler.WebHookHandler)
 	err = http.ListenAndServe(":8080", nil)
 	if err != nil {

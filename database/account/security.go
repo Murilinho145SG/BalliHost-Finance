@@ -87,6 +87,22 @@ func GenerateJWT(userID string) string {
 	return tokenString
 }
 
+func GenerateJWTRole(userID string) string {
+	claims := jwt.MapClaims{
+		"userId": userID,
+		"exp":    time.Now().Add(7 * 24 * time.Hour).Unix(),
+		"admin":  true,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(os.Getenv("JWTKEY")))
+	if err != nil {
+		logs.NewSistemLogger().LogAndSendSystemMessage(err.Error())
+		return ""
+	}
+	return tokenString
+}
+
 func HashPassword(password string) string {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {

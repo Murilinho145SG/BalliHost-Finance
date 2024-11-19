@@ -1,7 +1,6 @@
 package account
 
 import (
-	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -12,6 +11,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// MiddleWare para checar se o token é válido para páginas normais
+// como áreas de cliente e informações próprias, segurança básica apenas
+// para pessoas normais
 func Authenticate(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger := logs.NewSistemLogger()
@@ -50,14 +52,66 @@ func Authenticate(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func ProtectedRoute(w http.ResponseWriter, r *http.Request) {
-	_, err := fmt.Fprintln(w, "acesso concedido!, bem-vindo")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+// MiddleWare para checar se o token é valido para acessar páginas de administradores
+// ele pega a partir do role dentro do JWT para ver se é válido, se ele não for ele
+// retorna acesso não autorizado
+func AuthenticateAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger := logs.NewSistemLogger()
+		tokenString := r.Header.Get("Authorization")
+		if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
+			tokenString = tokenString[7:]
+		}
+
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				http.Error(w, "Invalid Token", http.StatusUnauthorized)
+				logger.LogAndSendSystemMessage("Invalid Token, SigningMethod, ADMIN")
+				return nil, nil
+			}
+
+			return []byte(os.Getenv("JWTKEY")), nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, "Invalid Token", http.StatusUnauthorized)
+			logger.LogAndSendSystemMessage(err.Error())
+			return
+		}
+
+		claims := token.Claims.(jwt.MapClaims)
+
+		uuid := claims["userId"].(string)
+		if !UserExist(uuid) {
+			http.Error(w, "Invalid Token", http.StatusUnauthorized)
+			logger.LogAndSendSystemMessage("Invalid token, User does not exist ADMIN")
+			return
+		}
+
+		role := claims["admin"]
+		if role == nil || role == "" {
+			http.Error(w, "Invalid Token", http.StatusUnauthorized)
+			logger.LogAndSendSystemMessage("Invalid token for access Admin page IP: " + r.RemoteAddr)
+			return
+		}
+		
+		if !IsAdmin(uuid) {
+			http.Error(w, "Invalid Token", http.StatusUnauthorized)
+			logger.LogAndSendSystemMessage("Invalid token for access Admin page IP: " + r.RemoteAddr)
+			return
+		}
+
+		next(w, r)
 	}
 }
 
+// Ele gera um token próprio que nunca vai ser igual a partir
+// do email da pessoa, sendo feito diversos cálculos a partir
+// disso criando um token único para cada requisição, mesmo
+// sendo o mesmo email, e ele já salva dentro do banco de dados
+// e ele salva dentro da DATA a partir do email pegando o UUID
+// e o dispositivo usado para fazer a requisição assim dando replace
+// no magic link anterior ou até mesmo criando um novo caso não exista
 func MagicLinkGenerator(device, email string) string {
 	token := func() string {
 		allowedChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@$&"
@@ -105,7 +159,7 @@ func MagicLinkGenerator(device, email string) string {
 
 			tokenR.WriteRune(letter)
 		}
-		
+
 		return strings.ReplaceAll(tokenR.String(), "\x00", "&")
 	}
 

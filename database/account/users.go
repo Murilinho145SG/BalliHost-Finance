@@ -179,10 +179,10 @@ func CreateUser(user *DataUserRegistry, data *Data) {
 		return
 	}
 
-	query = "INSERT INTO userinfo (uuid, data) VALUES (?, ?)"
+	query = "INSERT INTO userinfo (uuid, data, admin) VALUES (?, ?, ?)"
 	_, err = db.Exec(query,
 		userUUID,
-		string(dataJson))
+		string(dataJson), 0)
 
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
@@ -198,6 +198,7 @@ func GetUserUUID(email string) string {
 		logger.LogAndSendSystemMessage(err.Error())
 		return ""
 	}
+	defer db.Close()
 
 	var userUuid string
 	query := "SELECT uuid FROM userdata WHERE email = ?"
@@ -292,6 +293,7 @@ func GetDataInfoUser(userUuid string) *[]Data {
 		logger.LogAndSendSystemMessage(err.Error())
 		return nil
 	}
+	defer db.Close()
 
 	var dataString string
 
@@ -320,14 +322,13 @@ func MagicLinkMarker(email, device, magicId string) string {
 	}
 
 	db, err := database.InitializeDB()
-
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
 		return ""
 	}
+	defer db.Close()
 
 	userUUID := GetUserUUID(email)
-
 	datas := GetDataInfoUser(userUUID)
 
 	for i, data := range *datas {
@@ -338,7 +339,6 @@ func MagicLinkMarker(email, device, magicId string) string {
 	}
 
 	bytes, err := json.Marshal(datas)
-
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
 	}
@@ -362,6 +362,7 @@ func HasData(email string) bool {
 		logger.LogAndSendSystemMessage(err.Error())
 		return false
 	}
+	defer db.Close()
 
 	userUuid := GetUserUUID(email)
 
@@ -384,6 +385,7 @@ func GetEmailByUuid(userUuid string) string {
 		logger.LogAndSendSystemMessage(err.Error())
 		return ""
 	}
+	defer db.Close()
 
 	var email string
 
@@ -455,4 +457,23 @@ func ValidMagicLink(device, userUuid string) {
 	ConvertToJson(datas, &value)
 
 	UpdateDataInfo("data", userUuid, value)
+}
+
+func IsAdmin(userId string) bool {
+	logger := logs.NewSistemLogger()
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return false
+	}
+	defer db.Close()
+
+	var value bool
+	err = db.QueryRow("SELECT admin FROM userinfo WHERE uuid = ?", userId).Scan(&value)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return false
+	}
+
+	return value
 }
