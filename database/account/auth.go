@@ -94,7 +94,7 @@ func AuthenticateAdmin(next http.HandlerFunc) http.HandlerFunc {
 			logger.LogAndSendSystemMessage("Invalid token for access Admin page IP: " + r.RemoteAddr)
 			return
 		}
-		
+
 		if !IsAdmin(uuid) {
 			http.Error(w, "Invalid Token", http.StatusUnauthorized)
 			logger.LogAndSendSystemMessage("Invalid token for access Admin page IP: " + r.RemoteAddr)
@@ -112,7 +112,7 @@ func AuthenticateAdmin(next http.HandlerFunc) http.HandlerFunc {
 // e ele salva dentro da DATA a partir do email pegando o UUID
 // e o dispositivo usado para fazer a requisição assim dando replace
 // no magic link anterior ou até mesmo criando um novo caso não exista
-func MagicLinkGenerator(device, email string) string {
+func MagicLinkGenerator(email string) string {
 	token := func() string {
 		allowedChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@$&"
 
@@ -163,5 +163,5 @@ func MagicLinkGenerator(device, email string) string {
 		return strings.ReplaceAll(tokenR.String(), "\x00", "&")
 	}
 
-	return MagicLinkMarker(email, device, token())
+	return MagicLinkMarker(email, token())
 }

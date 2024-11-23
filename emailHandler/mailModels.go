@@ -58,12 +58,12 @@ func SetNoreply() *EmailHandler {
 	}
 }
 
-func SendMagicLinkVerification(email, device string) {
+func SendMagicLinkVerification(email string) {
 	noreply := SetNoreply()
 
 	magicEmail := LoadHTMLFiles("email_verification")
 
-	magicLink := account.MagicLinkGenerator(device, email)
+	magicLink := account.MagicLinkGenerator(email)
 
 	parts := strings.Split(magicEmail, "%TOKEN%")
 

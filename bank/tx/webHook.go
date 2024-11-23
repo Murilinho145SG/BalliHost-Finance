@@ -1,10 +1,10 @@
-package handler
+package tx
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
+	"prodata/api"
 	"prodata/bank"
 	"strconv"
 )
@@ -22,37 +22,27 @@ type PaymentNotification struct {
 	} `json:"data"`
 }
 
-func WebHookHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
+func WebHookHandler(ctx *api.Context) {
 	var notification PaymentNotification
 
-	if err := json.NewDecoder(r.Body).Decode(&notification); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := ctx.Json(&notification); err != nil {
+		ctx.Error(err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	id, err := strconv.Atoi(notification.Data.ID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		ctx.Error(err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	paymentInfo, err := bank.Client().Get(context.Background(), id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		ctx.Error(err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	fmt.Println(paymentInfo.Status)
 
-	w.WriteHeader(http.StatusOK)
+	ctx.WriteHeader(http.StatusOK)
 }

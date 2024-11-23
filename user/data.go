@@ -1,51 +1,33 @@
 package user
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
+	"prodata/api"
 	"prodata/database/account"
 	"prodata/emailHandler"
-	"prodata/logs"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func HandlerRegister(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	if r.Method == http.MethodOptions {
-		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-		w.WriteHeader(http.StatusOK)
-		return
-	}
+func HandlerRegister(ctx *api.Context) {
+	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
 	var user account.DataUserRegistry
-	err := json.NewDecoder(r.Body).Decode(&user)
+	err := ctx.ReadJson(&user)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		logs.NewSistemLogger().LogAndSendSystemMessage(err.Error())
+		ctx.Error(err.Error(), http.StatusBadRequest)
+		ctx.Logger.LogAndSendSystemMessage(err.Error())
 		return
 	}
 
-	data := account.Data{
-		Device:              r.Header.Get("User-Agent"),
-		IPAddress:           r.RemoteAddr,
-		Auth:                false,
-		MagicLinkId:         "",
-		MagicLinkVerified:   false,
-		MagicLinkExpiration: time.Now(),
-	}
-
-	ok := CheckErrorsRegister(&user, w, &data)
+	ok := CheckErrorsRegister(&user, ctx)
 
 	if ok {
-		emailHandler.SendMagicLinkVerification(user.Email, r.Header.Get("User-Agent"))
+		emailHandler.SendMagicLinkVerification(user.Email)
 	}
 
 }
@@ -158,7 +140,7 @@ func (s *ErrorRegisters) ErrorsRegister(msg string) *ErrorRegisters {
 	return s
 }
 
-func CheckErrorsRegister(user *account.DataUserRegistry, w http.ResponseWriter, data *account.Data) bool {
+func CheckErrorsRegister(user *account.DataUserRegistry, ctx *api.Context) bool {
 	regErr := ErrorRegisters{}
 	fields := []string{
 		user.FirstName, user.LastName, user.Email, user.Password, user.Birthdate, user.CPF, user.Phone, user.Address, user.City, user.State, user.ZipCode, user.Country,
@@ -209,42 +191,42 @@ func CheckErrorsRegister(user *account.DataUserRegistry, w http.ResponseWriter, 
 	}
 
 	if len(regErr.Errors) > 0 {
-		err := json.NewEncoder(w).Encode(regErr.Errors)
+		err := ctx.Json(regErr.Errors)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			logs.NewSistemLogger().LogAndSendSystemMessage(err.Error())
+			ctx.Error(err.Error(), http.StatusBadRequest)
+			ctx.Logger.LogAndSendSystemMessage(err.Error())
 			return false
 		}
 	} else {
 		exist := account.UserExistFromEmail(user.Email)
 
 		if !exist {
-			account.CreateUser(user, data)
-			w.WriteHeader(http.StatusCreated)
+			account.CreateUser(user)
+			ctx.WriteHeader(http.StatusCreated)
 
-			err := json.NewEncoder(w).Encode(map[string]interface{}{
+			err := ctx.Json(map[string]interface{}{
 				"success": "Added successfully",
 			})
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				logs.NewSistemLogger().LogAndSendSystemMessage(err.Error())
+				ctx.Error(err.Error(), http.StatusBadRequest)
+				ctx.Logger.LogAndSendSystemMessage(err.Error())
 				return false
 			}
 
 			return true
 
 		} else {
-			w.WriteHeader(http.StatusBadRequest)
+			ctx.WriteHeader(http.StatusBadRequest)
 
-			err := json.NewEncoder(w).Encode(map[string]interface{}{
+			err := ctx.Json(map[string]interface{}{
 				"registry": map[string]interface{}{
 					"message": "Email already registered",
 				},
 			})
 
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				logs.NewSistemLogger().LogAndSendSystemMessage(err.Error())
+				ctx.Error(err.Error(), http.StatusBadRequest)
+				ctx.Logger.LogAndSendSystemMessage(err.Error())
 				return false
 			}
 		}
@@ -256,57 +238,85 @@ func CheckErrorsRegister(user *account.DataUserRegistry, w http.ResponseWriter, 
 //I need a make a login auth
 //This Handler is so good
 
-func HandlerMagicLink(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	logger := logs.NewSistemLogger()
-
-	if r.Method == http.MethodOptions {
-		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	id := r.URL.Path[len("/account/verify/"):]
+func HandlerMagicLink(ctx *api.Context) {
+	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
 	var email map[string]string
 
-	err := json.NewDecoder(r.Body).Decode(&email)
+	err := ctx.ReadJson(&email)
 	if err != nil {
-		logger.LogAndSendSystemMessage(err.Error())
-		http.Error(w, "Error", http.StatusInternalServerError)
+		ctx.Logger.LogAndSendSystemMessage(err.Error())
+		ctx.Error("Error", http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	ctx.WriteHeader(http.StatusOK)
 	userUuid := account.GetUserUUID(email["email"])
-	ok, token := account.IsValidMagicLink(userUuid, id)
+	ok, token := account.IsValidMagicLink(userUuid, ctx.NewRoutes().DynamicRoute())
 
 	if ok {
 		if token == "retry" {
-			w.WriteHeader(http.StatusOK)
-			emailHandler.SendMagicLinkVerification(email["email"], r.Header.Get("User-Agent"))
+			ctx.WriteHeader(http.StatusOK)
+			emailHandler.SendMagicLinkVerification(email["email"])
 		} else {
-			account.ValidMagicLink(r.Header.Get("User-Agent"), userUuid)
-			tokenJwt := account.GenerateJWT(userUuid)
+			dId := account.ValidMagicLink(userUuid, ctx.Request.Header.Get("User-Agent"), ctx.Request.RemoteAddr)
+			tokenJwt := account.GenerateJWT(userUuid, dId)
 
 			tokenJson := map[string]string{
 				"token": tokenJwt,
 			}
 
-			err = json.NewEncoder(w).Encode(tokenJson)
+			err = ctx.Json(tokenJson)
 			if err != nil {
-				logger.LogAndSendSystemMessage(err.Error())
-				w.WriteHeader(http.StatusInternalServerError)
+				ctx.Logger.LogAndSendSystemMessage(err.Error())
+				ctx.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 		}
 	} else {
-		w.WriteHeader(http.StatusBadRequest)
+		ctx.WriteHeader(http.StatusBadRequest)
 	}
 }
 
-func HandlerLogin(w http.ResponseWriter, r *http.Request) {
-	
+func HandlerLogin(ctx *api.Context) {
+	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+
+	var values map[string]interface{}
+
+	err := ctx.ReadJson(&values)
+
+	if err != nil {
+		ctx.Logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+
+	email, password := values["email"].(string), values["password"].(string)
+	if email == "" || password == "" {
+		ctx.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	ok := account.UserExistFromEmail(email)
+	if !ok {
+		ctx.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if !account.CanLogin(email) {
+		ctx.Logger.LogAndSendSystemMessage("Não consegue logar")
+		ctx.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	userData := account.GetUser(email)
+	if !account.ComparePassword(password, userData.Password) {
+		ctx.Logger.LogAndSendSystemMessage("senha invalida")
+		account.RegisterAttempts(email, ctx.Request.RemoteAddr)
+		ctx.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	emailHandler.SendMagicLinkVerification(email)
+
+	ctx.WriteHeader(http.StatusOK)
 }

@@ -109,7 +109,7 @@ func GetUser(email string) *DataUser {
 	return &user
 }
 
-func CreateUser(user *DataUserRegistry, data *Data) {
+func CreateUser(user *DataUserRegistry) {
 	logger := logs.NewSistemLogger()
 
 	db, err := database.InitializeDB()
@@ -169,20 +169,10 @@ func CreateUser(user *DataUserRegistry, data *Data) {
 	}
 
 	userUUID := GetUserUUID(user.Email)
-	var dataArray []Data
 
-	dataArray = append(dataArray, *data)
-
-	dataJson, err := json.Marshal(&dataArray)
-	if err != nil {
-		logger.LogAndSendSystemMessage(err.Error())
-		return
-	}
-
-	query = "INSERT INTO userinfo (uuid, data, admin) VALUES (?, ?, ?)"
+	query = "INSERT INTO userinfo (uuid, auth, admin, data) VALUES (?, ?, ?, ?)"
 	_, err = db.Exec(query,
-		userUUID,
-		string(dataJson), 0)
+		userUUID, 0, 0, "[]")
 
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
@@ -276,16 +266,21 @@ func UserExistFromEmail(email string) bool {
 	return true
 }
 
-type Data struct {
-	Device              string
-	IPAddress           string
+type UserData struct {
 	Auth                bool
 	MagicLinkId         string
 	MagicLinkVerified   bool
 	MagicLinkExpiration time.Time
+	Data                []Data
 }
 
-func GetDataInfoUser(userUuid string) *[]Data {
+type Data struct {
+	Device    string
+	DeviceId  string
+	IPAddress string
+}
+
+func GetDataInfoUser(userUuid string) *UserData {
 	logger := logs.NewSistemLogger()
 
 	db, err := database.InitializeDB()
@@ -295,9 +290,21 @@ func GetDataInfoUser(userUuid string) *[]Data {
 	}
 	defer db.Close()
 
+	var userData UserData
+
+	var auth bool
+	var magicAuthId string
+	var magicAuthVerified bool
+	var magicAuthExpirationStr string
 	var dataString string
 
-	err = db.QueryRow("SELECT data FROM userinfo WHERE uuid = ?", userUuid).Scan(&dataString)
+	err = db.QueryRow("SELECT auth, magic_auth_id, magic_auth_verified, magic_auth_expiration, data FROM userinfo WHERE uuid = ?", userUuid).Scan(
+		&auth,
+		&magicAuthId,
+		&magicAuthVerified,
+		&magicAuthExpirationStr,
+		&dataString)
+
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
 		return nil
@@ -311,15 +318,36 @@ func GetDataInfoUser(userUuid string) *[]Data {
 		return nil
 	}
 
-	return &values
+	magicAuthExpiration, err := time.ParseInLocation(time.DateTime, magicAuthExpirationStr, time.Local)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return nil
+	}
+
+	userData.Data = values
+	userData.Auth = auth
+	userData.MagicLinkId = magicAuthId
+	userData.MagicLinkVerified = magicAuthVerified
+	userData.MagicLinkExpiration = magicAuthExpiration
+
+	return &userData
 }
 
-func MagicLinkMarker(email, device, magicId string) string {
-	logger := logs.NewSistemLogger()
-
-	if !HasData(email) {
-		logger.LogAndSendSystemMessage(email + " not have data")
+func CreateNewData(device, ip string) Data {
+	DeviceID, err := uuid.NewUUID()
+	if err != nil {
+		return Data{}
 	}
+
+	return Data{
+		IPAddress: ip,
+		Device:    device,
+		DeviceId:  DeviceID.String(),
+	}
+}
+
+func MagicLinkMarker(email, magicId string) string {
+	logger := logs.NewSistemLogger()
 
 	db, err := database.InitializeDB()
 	if err != nil {
@@ -329,22 +357,10 @@ func MagicLinkMarker(email, device, magicId string) string {
 	defer db.Close()
 
 	userUUID := GetUserUUID(email)
-	datas := GetDataInfoUser(userUUID)
+	expiration := time.Now().Add(time.Minute * 10)
 
-	for i, data := range *datas {
-		if device == data.Device {
-			(*datas)[i].MagicLinkId = magicId
-			(*datas)[i].MagicLinkExpiration = time.Now().Add(time.Minute * 10)
-		}
-	}
-
-	bytes, err := json.Marshal(datas)
-	if err != nil {
-		logger.LogAndSendSystemMessage(err.Error())
-	}
-
-	query := "UPDATE userinfo SET data =? WHERE uuid =?"
-	_, err = db.Exec(query, string(bytes), userUUID)
+	query := "UPDATE userinfo SET magic_auth_id = ?, magic_auth_verified = ?, magic_auth_expiration = ? WHERE uuid = ?"
+	_, err = db.Exec(query, magicId, 0, expiration.Format(time.DateTime), userUUID)
 
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
@@ -399,16 +415,14 @@ func GetEmailByUuid(userUuid string) string {
 }
 
 func IsValidMagicLink(userUuid, magicLink string) (bool, string) {
-	datas := GetDataInfoUser(userUuid)
+	data := GetDataInfoUser(userUuid)
 
-	for _, data := range *datas {
-		if data.MagicLinkId != "" && data.MagicLinkId == magicLink && data.MagicLinkExpiration.After(time.Now()) {
-			return true, ""
-		}
+	if data.MagicLinkId != "" && data.MagicLinkId == magicLink && data.MagicLinkExpiration.After(time.Now()) {
+		return true, ""
+	}
 
-		if data.MagicLinkId != "" && data.MagicLinkId == magicLink && data.MagicLinkExpiration.Before(time.Now()) {
-			return true, "retry"
-		}
+	if data.MagicLinkId != "" && data.MagicLinkId == magicLink && data.MagicLinkExpiration.Before(time.Now()) {
+		return true, "retry"
 	}
 
 	return false, ""
@@ -425,38 +439,28 @@ func ConvertToJson(data *[]Data, value *string) {
 	*value = string(bytes)
 }
 
-func UpdateDataInfo(param, userUuid string, args any) bool {
+func ValidMagicLink(userUuid, device, ip string) string {
 	logger := logs.NewSistemLogger()
 	db, err := database.InitializeDB()
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
-		return false
+		return ""
 	}
 	defer db.Close()
 
-	_, err = db.Exec(fmt.Sprintf("UPDATE userinfo SET %s=? WHERE uuid=?", param), args, userUuid)
+	data := CreateNewData(device, ip)
+	byte, err := json.Marshal(data)
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
-		return false
+		return ""
 	}
-
-	return true
-}
-
-func ValidMagicLink(device, userUuid string) {
-	datas := GetDataInfoUser(userUuid)
-
-	for i, data := range *datas {
-		if data.Device == device {
-			(*datas)[i].MagicLinkId = ""
-			(*datas)[i].MagicLinkVerified = true
-		}
+	_, err = db.Exec("UPDATE userinfo SET magic_auth_id =?, magic_auth_verified =?, data =? WHERE uuid =?", "", 1, string(byte), userUuid)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return ""
 	}
-	var value string
-
-	ConvertToJson(datas, &value)
-
-	UpdateDataInfo("data", userUuid, value)
+	
+	return data.DeviceId
 }
 
 func IsAdmin(userId string) bool {
@@ -476,4 +480,142 @@ func IsAdmin(userId string) bool {
 	}
 
 	return value
+}
+
+type Attempts struct {
+	Email       string
+	IpAddress   string
+	Attempts    int
+	Date        time.Time
+	CanBackDate time.Time
+}
+
+func RegisterAttempts(email, ipAddress string) {
+	logger := logs.NewSistemLogger()
+
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+	defer db.Close()
+
+	var attempts int
+	var canBackStr string
+	var ip string
+
+	err = db.QueryRow("SELECT attempts, ip, can_back FROM registration_attempts WHERE email = ?", email).Scan(&attempts, &ip, &canBackStr)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			_, err = db.Exec("INSERT INTO registration_attempts (email, ip, attempts, date, can_back) VALUES (?, ?, ?, ?, ?)",
+				email,
+				ipAddress,
+				1,
+				time.Now().Format(time.DateTime),
+				time.Now().Format(time.DateTime))
+
+			if err != nil {
+				logger.LogAndSendSystemMessage(err.Error())
+			}
+
+			return
+		} else {
+			logger.LogAndSendSystemMessage(err.Error())
+			return
+		}
+	}
+
+	canBack, err := time.ParseInLocation(time.DateTime, canBackStr, time.Local)
+
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+
+	if ipAddress != ip {
+		_, err := db.Exec("UPDATE registration_attempts SET ip = ? WHERE email = ?", ipAddress, email)
+		if err != nil {
+			logger.LogAndSendSystemMessage(err.Error())
+			return
+		}
+	}
+
+	if canBack.After(time.Now()) {
+		return
+	}
+
+	if attempts+1 == 5 {
+		_, err := db.Exec("UPDATE registration_attempts SET attempts = ?, can_back = ? WHERE email = ?",
+			0,
+			time.Now().Add(10*time.Minute).Format(time.DateTime),
+			email)
+		if err != nil {
+			logger.LogAndSendSystemMessage(err.Error())
+		}
+
+		return
+	} else {
+		fmt.Println("Colocando Attempts")
+		_, err := db.Exec("UPDATE registration_attempts SET attempts = ? WHERE email = ?", attempts+1, email)
+		if err != nil {
+			logger.LogAndSendSystemMessage(err.Error())
+		}
+
+		return
+	}
+}
+
+func GetAttempts(email string) *Attempts {
+	logger := logs.NewSistemLogger()
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return nil
+	}
+
+	defer db.Close()
+
+	var attempts Attempts
+
+	var date string
+	var canBack string
+
+	err = db.QueryRow("SELECT * FROM registration_attempts WHERE email = ?", email).Scan(
+		&attempts.Email,
+		&attempts.IpAddress,
+		&attempts.Attempts,
+		&date,
+		&canBack)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return nil
+	}
+
+	attempts.Date, err = time.ParseInLocation(time.DateTime, date, time.Local)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return nil
+	}
+
+	attempts.CanBackDate, err = time.ParseInLocation(time.DateTime, canBack, time.Local)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return nil
+	}
+
+	return &attempts
+}
+
+func CanLogin(email string) bool {
+	attempts := GetAttempts(email)
+
+	if attempts == nil {
+		return true
+	}
+
+	if attempts.CanBackDate.After(time.Now()) {
+		return false
+	}
+
+	return true
 }

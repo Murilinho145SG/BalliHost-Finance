@@ -1,16 +1,7 @@
-{
-  "Pc": {
-    "ip": "ipAddress",
-    "auth": false,
-    "verified": false,
-    "magic_link_id": "token",
-    "magic_link_expiration": "00-00-00 00:00:00"
-  },
-  "Android": {
-    "ip": "ipAddress",
-    "magic_link_id": "token",
-    "auth": false,
-    "verified": false,
-    "magic_link_expiration": "00-00-00 00:00:00"
+[
+  {
+    "Device": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "IPAddress": "192.168.15.137:56256",
+    "DeviceId": "Id do Dispositivo"
   }
-}
+]

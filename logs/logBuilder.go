@@ -68,22 +68,24 @@ func (l *Logger) LogSystemMessage(msg string) {
 	l.LogMessage(msg, fmt.Sprintf("[%s:%d %s]", file, line, funcName))
 }
 
-func (l *Logger) LogAndSendSystemMessage(msg string) {
+func (l *Logger) LogAndSendSystemMessage(msg any) {
 	file, line, funcName, err := GetCallerInfos(2)
 	if err != nil {
 		fmt.Println("Error when trying to get caller infos:", err)
 		return
 	}
 
-	l.LogMessage("\""+msg+"\"", fmt.Sprintf("[%s:%d %s]", file, line, funcName))
+	if funcName == "func1" {
+		funcName = "anonymous"
+	}
+
+	l.LogMessage("\""+fmt.Sprintf("%s", msg)+"\"", fmt.Sprintf("[%s:%d %s]", file, line, funcName))
 	l.SendSystemMessage()
 	l.Messages = nil
 }
 
 func (l *Logger) SendSystemMessage() error {
-	fmt.Println(l.Id)
-
-	dir := "C:/logs"
+	dir := "/ballihost/logs"
 
 	err := os.MkdirAll(dir, 0644)
 	if err != nil {

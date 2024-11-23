@@ -72,10 +72,11 @@ func Decrypt(encrypted string) string {
 	return string(plaintext)
 }
 
-func GenerateJWT(userID string) string {
+func GenerateJWT(userID, deviceId string) string {
 	claims := jwt.MapClaims{
-		"userId": userID,
-		"exp":    time.Now().Add(7 * 24 * time.Hour).Unix(),
+		"userId":   userID,
+		"DeviceId": deviceId,
+		"exp":      time.Now().Add(7 * 24 * time.Hour).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -87,9 +88,10 @@ func GenerateJWT(userID string) string {
 	return tokenString
 }
 
-func GenerateJWTRole(userID string) string {
+func GenerateJWTRole(userID, deviceId string) string {
 	claims := jwt.MapClaims{
 		"userId": userID,
+		"DeviceId": deviceId,
 		"exp":    time.Now().Add(7 * 24 * time.Hour).Unix(),
 		"admin":  true,
 	}

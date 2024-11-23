@@ -13,7 +13,7 @@ func InitializeDB() (*sql.DB, error) {
 	password := os.Getenv("DB_PASSWORD")
 	host := os.Getenv("DB_HOST")
 	port := os.Getenv("DB_PORT")
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/ballihost", user, password, host, port)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/BalliHost", user, password, host, port)
 	db, err := sql.Open("mysql", dsn)
 
 	if err != nil {
