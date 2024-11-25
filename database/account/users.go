@@ -17,16 +17,6 @@ type DataUserRegistry struct {
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`
 	Password  string `json:"password"`
-	CPF       string `json:"cpf"`
-	Phone     string `json:"phone"`
-	Address   string `json:"address"`
-	Address2  string `json:"address2,omitempty"`
-	City      string `json:"city"`
-	State     string `json:"state"`
-	ZipCode   string `json:"zip_code"`
-	Country   string `json:"country"`
-	Birthdate string `json:"birthdate"`
-	Company   string `json:"company,omitempty"`
 }
 
 type DataUser struct {
@@ -65,23 +55,13 @@ func GetUser(email string) *DataUser {
 	}(db)
 
 	var user DataUser
-	query := "SELECT uuid, first_name, last_name, email, password, cpf, phone, address, address2, city, state, zipcode, country, birth_date, company FROM userdata WHERE email =?"
+	query := "SELECT uuid, first_name, last_name, email, password FROM userdata WHERE email =?"
 	err = db.QueryRow(query, email).Scan(
 		&user.UUID,
 		&user.FirstName,
 		&user.LastName,
 		&user.Email,
-		&user.Password,
-		&user.CPF,
-		&user.Phone,
-		&user.Address,
-		&user.Address2,
-		&user.City,
-		&user.State,
-		&user.ZipCode,
-		&user.Country,
-		&user.Birthdate,
-		&user.Company)
+		&user.Password)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -95,16 +75,6 @@ func GetUser(email string) *DataUser {
 	user.FirstName = Decrypt(user.FirstName)
 	user.LastName = Decrypt(user.LastName)
 	user.Password = Decrypt(user.Password)
-	user.CPF = Decrypt(user.CPF)
-	user.Phone = Decrypt(user.Phone)
-	user.Address = Decrypt(user.Address)
-	user.Address2 = Decrypt(user.Address2)
-	user.City = Decrypt(user.City)
-	user.State = Decrypt(user.State)
-	user.ZipCode = Decrypt(user.ZipCode)
-	user.Country = Decrypt(user.Country)
-	user.Birthdate = Decrypt(user.Birthdate)
-	user.Company = Decrypt(user.Company)
 
 	return &user
 }
@@ -135,34 +105,14 @@ func CreateUser(user *DataUserRegistry) {
 	user.FirstName = Encrypt(user.FirstName)
 	user.LastName = Encrypt(user.LastName)
 	user.Password = Encrypt(HashPassword(user.Password))
-	user.CPF = Encrypt(user.CPF)
-	user.Phone = Encrypt(user.Phone)
-	user.Address = Encrypt(user.Address)
-	user.Address2 = Encrypt(user.Address2)
-	user.City = Encrypt(user.City)
-	user.State = Encrypt(user.State)
-	user.ZipCode = Encrypt(user.ZipCode)
-	user.Country = Encrypt(user.Country)
-	user.Birthdate = Encrypt(user.Birthdate)
-	user.Company = Encrypt(user.Company)
 
-	query := "INSERT INTO userdata (uuid, first_name, last_name, email, password, cpf, phone, address, address2, city, state, zipcode, country, birth_date, company) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+	query := "INSERT INTO userdata (uuid, first_name, last_name, email, password) VALUES (?,?,?,?,?)"
 	_, err = db.Exec(query,
 		uuid.New(),
 		user.FirstName,
 		user.LastName,
 		user.Email,
-		user.Password,
-		user.CPF,
-		user.Phone,
-		user.Address,
-		user.Address2,
-		user.City,
-		user.State,
-		user.ZipCode,
-		user.Country,
-		user.Birthdate,
-		user.Company)
+		user.Password)
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
 		return
@@ -170,7 +120,7 @@ func CreateUser(user *DataUserRegistry) {
 
 	userUUID := GetUserUUID(user.Email)
 
-	query = "INSERT INTO userinfo (uuid, auth, admin, data) VALUES (?, ?, ?, ?)"
+	query = "INSERT INTO userinfo (uuid, auth, admin, devices) VALUES (?, ?, ?, ?)"
 	_, err = db.Exec(query,
 		userUUID, 0, 0, "[]")
 
@@ -271,10 +221,10 @@ type UserData struct {
 	MagicLinkId         string
 	MagicLinkVerified   bool
 	MagicLinkExpiration time.Time
-	Data                []Data
+	Devices                []Devices
 }
 
-type Data struct {
+type Devices struct {
 	Device    string
 	DeviceId  string
 	IPAddress string
@@ -298,7 +248,7 @@ func GetDataInfoUser(userUuid string) *UserData {
 	var magicAuthExpirationStr string
 	var dataString string
 
-	err = db.QueryRow("SELECT auth, magic_auth_id, magic_auth_verified, magic_auth_expiration, data FROM userinfo WHERE uuid = ?", userUuid).Scan(
+	err = db.QueryRow("SELECT auth, magic_auth_id, magic_auth_verified, magic_auth_expiration, devices FROM userinfo WHERE uuid = ?", userUuid).Scan(
 		&auth,
 		&magicAuthId,
 		&magicAuthVerified,
@@ -310,7 +260,7 @@ func GetDataInfoUser(userUuid string) *UserData {
 		return nil
 	}
 
-	var values []Data
+	var values []Devices
 
 	err = json.Unmarshal([]byte(dataString), &values)
 	if err != nil {
@@ -324,7 +274,7 @@ func GetDataInfoUser(userUuid string) *UserData {
 		return nil
 	}
 
-	userData.Data = values
+	userData.Devices = values
 	userData.Auth = auth
 	userData.MagicLinkId = magicAuthId
 	userData.MagicLinkVerified = magicAuthVerified
@@ -333,13 +283,13 @@ func GetDataInfoUser(userUuid string) *UserData {
 	return &userData
 }
 
-func CreateNewData(device, ip string) Data {
+func CreateNewData(device, ip string) Devices {
 	DeviceID, err := uuid.NewUUID()
 	if err != nil {
-		return Data{}
+		return Devices{}
 	}
 
-	return Data{
+	return Devices{
 		IPAddress: ip,
 		Device:    device,
 		DeviceId:  DeviceID.String(),
@@ -382,15 +332,15 @@ func HasData(email string) bool {
 
 	userUuid := GetUserUUID(email)
 
-	var data string
+	var devices string
 
-	err = db.QueryRow("SELECT data FROM userinfo WHERE uuid = ?", userUuid).Scan(&data)
+	err = db.QueryRow("SELECT devices FROM userinfo WHERE uuid = ?", userUuid).Scan(&devices)
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
 		return false
 	}
 
-	return data != ""
+	return devices != ""
 }
 
 func GetEmailByUuid(userUuid string) string {
@@ -414,23 +364,19 @@ func GetEmailByUuid(userUuid string) string {
 	return email
 }
 
-func IsValidMagicLink(userUuid, magicLink string) (bool, string) {
+func IsValidMagicLink(userUuid, magicLink string) bool {
 	data := GetDataInfoUser(userUuid)
 
 	if data.MagicLinkId != "" && data.MagicLinkId == magicLink && data.MagicLinkExpiration.After(time.Now()) {
-		return true, ""
+		return true
 	}
 
-	if data.MagicLinkId != "" && data.MagicLinkId == magicLink && data.MagicLinkExpiration.Before(time.Now()) {
-		return true, "retry"
-	}
-
-	return false, ""
+	return false
 }
 
-func ConvertToJson(data *[]Data, value *string) {
+func ConvertToJson(devices *[]Devices, value *string) {
 	logger := logs.NewSistemLogger()
-	bytes, err := json.Marshal(&data)
+	bytes, err := json.Marshal(&devices)
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
 		return
@@ -448,19 +394,19 @@ func ValidMagicLink(userUuid, device, ip string) string {
 	}
 	defer db.Close()
 
-	data := CreateNewData(device, ip)
-	byte, err := json.Marshal(data)
+	devices := CreateNewData(device, ip)
+	byte, err := json.Marshal([]Devices{devices})
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
 		return ""
 	}
-	_, err = db.Exec("UPDATE userinfo SET magic_auth_id =?, magic_auth_verified =?, data =? WHERE uuid =?", "", 1, string(byte), userUuid)
+	_, err = db.Exec("UPDATE userinfo SET magic_auth_id =?, magic_auth_verified =?, devices =? WHERE uuid =?", "", 1, string(byte), userUuid)
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
 		return ""
 	}
-	
-	return data.DeviceId
+
+	return devices.DeviceId
 }
 
 func IsAdmin(userId string) bool {
@@ -502,9 +448,9 @@ func RegisterAttempts(email, ipAddress string) {
 
 	var attempts int
 	var canBackStr string
-	var ip string
+	var email2 string
 
-	err = db.QueryRow("SELECT attempts, ip, can_back FROM registration_attempts WHERE email = ?", email).Scan(&attempts, &ip, &canBackStr)
+	err = db.QueryRow("SELECT attempts, email, can_back FROM registration_attempts WHERE ip = ?", ipAddress).Scan(&attempts, &email2, &canBackStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			_, err = db.Exec("INSERT INTO registration_attempts (email, ip, attempts, date, can_back) VALUES (?, ?, ?, ?, ?)",
@@ -532,8 +478,8 @@ func RegisterAttempts(email, ipAddress string) {
 		return
 	}
 
-	if ipAddress != ip {
-		_, err := db.Exec("UPDATE registration_attempts SET ip = ? WHERE email = ?", ipAddress, email)
+	if email != email2 {
+		_, err := db.Exec("UPDATE registration_attempts SET email = ? WHERE ip = ?", email, ipAddress)
 		if err != nil {
 			logger.LogAndSendSystemMessage(err.Error())
 			return
@@ -556,7 +502,7 @@ func RegisterAttempts(email, ipAddress string) {
 		return
 	} else {
 		fmt.Println("Colocando Attempts")
-		_, err := db.Exec("UPDATE registration_attempts SET attempts = ? WHERE email = ?", attempts+1, email)
+		_, err := db.Exec("UPDATE registration_attempts SET attempts = ?, date = ? WHERE ip = ?", attempts+1, time.Now().Format(time.DateTime), ipAddress)
 		if err != nil {
 			logger.LogAndSendSystemMessage(err.Error())
 		}
@@ -565,7 +511,7 @@ func RegisterAttempts(email, ipAddress string) {
 	}
 }
 
-func GetAttempts(email string) *Attempts {
+func GetAttempts(ip string) *Attempts {
 	logger := logs.NewSistemLogger()
 	db, err := database.InitializeDB()
 	if err != nil {
@@ -580,13 +526,16 @@ func GetAttempts(email string) *Attempts {
 	var date string
 	var canBack string
 
-	err = db.QueryRow("SELECT * FROM registration_attempts WHERE email = ?", email).Scan(
+	err = db.QueryRow("SELECT * FROM registration_attempts WHERE ip = ?", ip).Scan(
 		&attempts.Email,
 		&attempts.IpAddress,
 		&attempts.Attempts,
 		&date,
 		&canBack)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
 		logger.LogAndSendSystemMessage(err.Error())
 		return nil
 	}
@@ -618,4 +567,106 @@ func CanLogin(email string) bool {
 	}
 
 	return true
+}
+
+func ResetAttempts(ip string) {
+	logger := logs.NewSistemLogger()
+
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+
+	defer db.Close()
+
+	_, err = db.Exec("UPDATE registration_attempts SET attempts = ? WHERE ip = ?", 0, ip)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+}
+
+func RegistryPasswordToken(email, token string) {
+	logger := logs.NewSistemLogger()
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+	defer db.Close()
+
+	userUuid := GetUserUUID(email)
+
+	_, err = db.Exec("UPDATE userinfo SET magic_password_id = ?, magic_password_expiration = ? WHERE uuid = ?",
+		token,
+		time.Now().Add(10 * time.Minute).Format(time.DateTime),
+		userUuid)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+}
+
+func IsValidPasswordToken(email, token string) bool {
+	logger := logs.NewSistemLogger()
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return false
+	}
+	defer db.Close()
+
+	var dToken string
+	var expirationStr string
+	userUuid := GetUserUUID(email)
+
+	err = db.QueryRow("SELECT magic_password_id, magic_password_expiration FROM userinfo WHERE uuid = ? ", userUuid).Scan(&dToken, &expirationStr)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return false
+	}
+
+	if dToken != token {
+		return false
+	}
+	
+	expiration, err := time.ParseInLocation(time.DateTime, expirationStr, time.Local)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return false
+	}
+	
+	if expiration.Before(time.Now()) {
+		logger.LogAndSendSystemMessage("Before")
+		_, err = db.Exec("UPDATE userinfo SET magic_password_id = ? WHERE uuid = ?", "", userUuid)
+		if err != nil {
+			logger.LogAndSendSystemMessage(err.Error())
+		}
+		return false
+	}
+
+	return true
+}
+
+func ChangePassword(email, newPassword string) {
+	logger := logs.NewSistemLogger()
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+	defer db.Close()
+
+	newPassword = Encrypt(HashPassword(newPassword))
+
+	_, err = db.Exec("UPDATE userdata SET password = ? WHERE email = ?", newPassword, email)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+
+	userUuid := GetUserUUID(email)
+
+	_, err = db.Exec("UPDATE userinfo SET magic_password_id = ? WHERE uuid = ?", "", userUuid)
 }

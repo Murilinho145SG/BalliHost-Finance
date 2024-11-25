@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"prodata/api"
 	"prodata/logs"
 	"strings"
 	"time"
@@ -55,18 +56,17 @@ func Authenticate(next http.HandlerFunc) http.HandlerFunc {
 // MiddleWare para checar se o token é valido para acessar páginas de administradores
 // ele pega a partir do role dentro do JWT para ver se é válido, se ele não for ele
 // retorna acesso não autorizado
-func AuthenticateAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger := logs.NewSistemLogger()
-		tokenString := r.Header.Get("Authorization")
+func AuthenticateAdmin(next api.ApiFunc) api.ApiFunc {
+	return func(ctx *api.Context) {
+		tokenString := ctx.Request.Header.Get("Authorization")
 		if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
 			tokenString = tokenString[7:]
 		}
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				http.Error(w, "Invalid Token", http.StatusUnauthorized)
-				logger.LogAndSendSystemMessage("Invalid Token, SigningMethod, ADMIN")
+				ctx.Error("Invalid Token", http.StatusUnauthorized)
+				ctx.Logger.LogAndSendSystemMessage("Invalid Token, SigningMethod, ADMIN")
 				return nil, nil
 			}
 
@@ -74,8 +74,8 @@ func AuthenticateAdmin(next http.HandlerFunc) http.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			http.Error(w, "Invalid Token", http.StatusUnauthorized)
-			logger.LogAndSendSystemMessage(err.Error())
+			ctx.Error("Invalid Token", http.StatusUnauthorized)
+			ctx.Logger.LogAndSendSystemMessage(err.Error())
 			return
 		}
 
@@ -83,26 +83,76 @@ func AuthenticateAdmin(next http.HandlerFunc) http.HandlerFunc {
 
 		uuid := claims["userId"].(string)
 		if !UserExist(uuid) {
-			http.Error(w, "Invalid Token", http.StatusUnauthorized)
-			logger.LogAndSendSystemMessage("Invalid token, User does not exist ADMIN")
+			ctx.Error("Invalid Token", http.StatusUnauthorized)
+			ctx.Logger.LogAndSendSystemMessage("Invalid token, User does not exist ADMIN")
 			return
 		}
 
 		role := claims["admin"]
 		if role == nil || role == "" {
-			http.Error(w, "Invalid Token", http.StatusUnauthorized)
-			logger.LogAndSendSystemMessage("Invalid token for access Admin page IP: " + r.RemoteAddr)
+			ctx.Error("Invalid Token", http.StatusUnauthorized)
+			ctx.Logger.LogAndSendSystemMessage("Invalid token for access Admin page IP: " + ctx.Request.RemoteAddr)
 			return
 		}
 
 		if !IsAdmin(uuid) {
-			http.Error(w, "Invalid Token", http.StatusUnauthorized)
-			logger.LogAndSendSystemMessage("Invalid token for access Admin page IP: " + r.RemoteAddr)
+			ctx.Error("Invalid Token", http.StatusUnauthorized)
+			ctx.Logger.LogAndSendSystemMessage("Invalid token for access Admin page IP: " + ctx.Request.RemoteAddr)
 			return
 		}
 
-		next(w, r)
+		next(ctx)
 	}
+}
+
+func MagicGenerator(email string) string {
+	allowedChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@$&"
+
+	UEmail := strings.ToUpper(email)
+
+	letters := strings.Split(UEmail, "")
+	key := os.Getenv("MAGIC_KEY")
+
+	var token strings.Builder
+
+	now := time.Now()
+	day := now.Day()
+	sec := now.Second()
+
+	keyT := day * sec
+	if keyT > 30 {
+		keyT /= 10
+	}
+
+	for index, letter := range letters {
+		for i := 'A'; i <= 'Z'; i++ {
+			if letter == string(i) {
+				randomChar := allowedChars[(index+int(keyT))%len(allowedChars)]
+				token.WriteByte(byte(randomChar))
+			}
+		}
+	}
+
+	for token.Len() < 30 {
+		token.WriteByte(byte(allowedChars[rand.Intn(len(allowedChars))]))
+	}
+
+	tokenR := strings.Builder{}
+	for index, letter := range token.String() {
+		if letter == ' ' || letter == '/' || letter == '\\' || letter == '}' || letter == '{' || letter == '|' {
+			letter = rune((int32(index) + int32(key[index%len(key)])*int32(keyT)) / 2 % 127)
+		}
+		if letter == '/' {
+			letter = '_'
+		}
+		if letter == '\\' {
+			letter = '%'
+		}
+
+		tokenR.WriteRune(letter)
+	}
+
+	return strings.ReplaceAll(tokenR.String(), "\x00", "&")
 }
 
 // Ele gera um token próprio que nunca vai ser igual a partir
@@ -113,55 +163,5 @@ func AuthenticateAdmin(next http.HandlerFunc) http.HandlerFunc {
 // e o dispositivo usado para fazer a requisição assim dando replace
 // no magic link anterior ou até mesmo criando um novo caso não exista
 func MagicLinkGenerator(email string) string {
-	token := func() string {
-		allowedChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@$&"
-
-		UEmail := strings.ToUpper(email)
-
-		letters := strings.Split(UEmail, "")
-		key := os.Getenv("MAGIC_KEY")
-
-		var token strings.Builder
-
-		now := time.Now()
-		day := now.Day()
-		sec := now.Second()
-
-		keyT := day * sec
-		if keyT > 30 {
-			keyT /= 10
-		}
-
-		for index, letter := range letters {
-			for i := 'A'; i <= 'Z'; i++ {
-				if letter == string(i) {
-					randomChar := allowedChars[(index+int(keyT))%len(allowedChars)]
-					token.WriteByte(byte(randomChar))
-				}
-			}
-		}
-
-		for token.Len() < 30 {
-			token.WriteByte(byte(allowedChars[rand.Intn(len(allowedChars))]))
-		}
-
-		tokenR := strings.Builder{}
-		for index, letter := range token.String() {
-			if letter == ' ' || letter == '/' || letter == '\\' || letter == '}' || letter == '{' || letter == '|' {
-				letter = rune((int32(index) + int32(key[index%len(key)])*int32(keyT)) / 2 % 127)
-			}
-			if letter == '/' {
-				letter = '_'
-			}
-			if letter == '\\' {
-				letter = '%'
-			}
-
-			tokenR.WriteRune(letter)
-		}
-
-		return strings.ReplaceAll(tokenR.String(), "\x00", "&")
-	}
-
-	return MagicLinkMarker(email, token())
+	return MagicLinkMarker(email, MagicGenerator(email))
 }

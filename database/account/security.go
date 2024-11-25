@@ -90,10 +90,10 @@ func GenerateJWT(userID, deviceId string) string {
 
 func GenerateJWTRole(userID, deviceId string) string {
 	claims := jwt.MapClaims{
-		"userId": userID,
+		"userId":   userID,
 		"DeviceId": deviceId,
-		"exp":    time.Now().Add(7 * 24 * time.Hour).Unix(),
-		"admin":  true,
+		"exp":      time.Now().Add(7 * 24 * time.Hour).Unix(),
+		"admin":    true,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

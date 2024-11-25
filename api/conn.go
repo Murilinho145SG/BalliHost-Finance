@@ -10,14 +10,16 @@ import (
 type ApiFunc func(ctx *Context)
 
 type Context struct {
-	Request   *http.Request
-	Writer    http.ResponseWriter
-	Json      func(v any) error
-	ReadJson  func(v any) error
-	Logger    logs.Logger
-	PureRoute string
-	Error     func(error any, code int)
-	WriteHeader func(code int)
+	Request      *http.Request
+	Writer       http.ResponseWriter
+	Json         func(v any) error
+	ReadJson     func(v any) error
+	Logger       logs.Logger
+	PureRoute    string
+	Error        func(error any, code int)
+	WriteHeader  func(code int)
+	IP           string
+	IfErrNotNull func(err error) bool
 }
 
 type Routes struct {
@@ -58,7 +60,21 @@ func NewContext(w http.ResponseWriter, r *http.Request, route string) *Context {
 		WriteHeader: func(code int) {
 			w.WriteHeader(code)
 		},
+		IP: r.RemoteAddr,
+		IfErrNotNull: func(err error) bool {
+			if err != nil {
+				logs.NewLogger().LogAndSendSystemMessage(err.Error())
+				w.WriteHeader(http.StatusBadRequest)
+				return false
+			}
+
+			return true
+		},
 	}
+}
+
+func (ctx *Context) Return() {
+	return
 }
 
 func Post(route string, handler func(ctx *Context)) {

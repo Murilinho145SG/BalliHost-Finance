@@ -58,6 +58,11 @@ func SetNoreply() *EmailHandler {
 	}
 }
 
+func VariableHTML(html *string, varName, value string) {
+	s := strings.Split(*html, varName)
+	*html = s[0] + value + s[1]
+}
+
 func SendMagicLinkVerification(email string) {
 	noreply := SetNoreply()
 
@@ -75,5 +80,21 @@ func SendMagicLinkVerification(email string) {
 
 	sender.Message = BuilderHTML(&sender, parts[0]+magicLink+parts[1])
 
+	SendEmail(&sender, noreply)
+}
+
+func SendMagicPasswordReset(email string) {
+	noreply := SetNoreply()
+	magicEmail := LoadHTMLFiles("password_redefinition")
+	magicLinkToken := account.MagicGenerator(email)
+	account.RegistryPasswordToken(email, magicLinkToken)
+	VariableHTML(&magicEmail, "%TOKEN%", magicLinkToken)
+	sender := SimpleSender{
+		From:    noreply.SmtpAddress,
+		To:      email,
+		Subject: "Redefinição de senha",
+	}
+
+	sender.Message = BuilderHTML(&sender, magicEmail)
 	SendEmail(&sender, noreply)
 }

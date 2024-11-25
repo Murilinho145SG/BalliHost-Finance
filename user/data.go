@@ -7,9 +7,6 @@ import (
 	"prodata/database/account"
 	"prodata/emailHandler"
 	"regexp"
-	"strconv"
-	"strings"
-	"time"
 )
 
 func HandlerRegister(ctx *api.Context) {
@@ -32,39 +29,39 @@ func HandlerRegister(ctx *api.Context) {
 
 }
 
-func ValidCpf(user *account.DataUserRegistry) bool {
-	re := regexp.MustCompile(`[^\d]`)
-	cpf := re.ReplaceAllString(user.CPF, "")
+// func ValidCpf(user *account.DataUserRegistry) bool {
+// 	re := regexp.MustCompile(`[^\d]`)
+// 	cpf := re.ReplaceAllString(user.CPF, "")
 
-	if len(cpf) != 11 || strings.Count(cpf, string(cpf[0])) == 11 {
-		return false
-	}
+// 	if len(cpf) != 11 || strings.Count(cpf, string(cpf[0])) == 11 {
+// 		return false
+// 	}
 
-	var plus int
-	for i := 0; i < 9; i++ {
-		num, _ := strconv.Atoi(string(cpf[i]))
-		plus += num * (10 - i)
-	}
-	first := (plus * 10 % 11) % 10
+// 	var plus int
+// 	for i := 0; i < 9; i++ {
+// 		num, _ := strconv.Atoi(string(cpf[i]))
+// 		plus += num * (10 - i)
+// 	}
+// 	first := (plus * 10 % 11) % 10
 
-	plus = 0
-	for i := 0; i < 10; i++ {
-		num, _ := strconv.Atoi(string(cpf[i]))
-		plus += num * (11 - i)
-	}
-	second := (plus * 10 % 11) % 10
+// 	plus = 0
+// 	for i := 0; i < 10; i++ {
+// 		num, _ := strconv.Atoi(string(cpf[i]))
+// 		plus += num * (11 - i)
+// 	}
+// 	second := (plus * 10 % 11) % 10
 
-	return cpf[9] == byte(first+'0') && cpf[10] == byte(second+'0')
-}
+// 	return cpf[9] == byte(first+'0') && cpf[10] == byte(second+'0')
+// }
 
 func ValidEmail(user *account.DataUserRegistry) bool {
 	return regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`).MatchString(user.Email)
 }
 
-func ValidPhone(user *account.DataUserRegistry) bool {
-	re := regexp.MustCompile(`^\(\d{2}\)\s\d{4,5}-\d{4}$`)
-	return re.MatchString(user.Phone)
-}
+// func ValidPhone(user *account.DataUserRegistry) bool {
+// 	re := regexp.MustCompile(`^\(\d{2}\)\s\d{4,5}-\d{4}$`)
+// 	return re.MatchString(user.Phone)
+// }
 
 func ValidPassword(user *account.DataUserRegistry) bool {
 	if user.Password == "" {
@@ -86,25 +83,25 @@ func ValidPassword(user *account.DataUserRegistry) bool {
 	return hasLower && hasUpper && hasDigit && hasSpecial
 }
 
-func ValidBirthdate(user *account.DataUserRegistry) bool {
-	parse, err := time.Parse(time.DateOnly, user.Birthdate)
-	now := time.Now()
+// func ValidBirthdate(user *account.DataUserRegistry) bool {
+// 	parse, err := time.Parse(time.DateOnly, user.Birthdate)
+// 	now := time.Now()
 
-	if err != nil || parse.After(now) {
-		return false
-	}
+// 	if err != nil || parse.After(now) {
+// 		return false
+// 	}
 
-	timeAge := now.Year() - parse.Year()
-	if now.Month() < parse.Month() || (now.Month() == parse.Month() && now.Day() < parse.Day()) {
-		timeAge--
-	}
+// 	timeAge := now.Year() - parse.Year()
+// 	if now.Month() < parse.Month() || (now.Month() == parse.Month() && now.Day() < parse.Day()) {
+// 		timeAge--
+// 	}
 
-	if timeAge < 18 {
-		return false
-	}
+// 	if timeAge < 18 {
+// 		return false
+// 	}
 
-	return true
-}
+// 	return true
+// }
 
 func ValidNames(user *account.DataUserRegistry) bool {
 	if user.FirstName == "" || user.LastName == "" {
@@ -143,7 +140,7 @@ func (s *ErrorRegisters) ErrorsRegister(msg string) *ErrorRegisters {
 func CheckErrorsRegister(user *account.DataUserRegistry, ctx *api.Context) bool {
 	regErr := ErrorRegisters{}
 	fields := []string{
-		user.FirstName, user.LastName, user.Email, user.Password, user.Birthdate, user.CPF, user.Phone, user.Address, user.City, user.State, user.ZipCode, user.Country,
+		user.FirstName, user.LastName, user.Email, user.Password,
 	}
 
 	for i, field := range fields {
@@ -172,23 +169,23 @@ func CheckErrorsRegister(user *account.DataUserRegistry, ctx *api.Context) bool 
 		regErr.ErrorsRegister("A senha deve conter uma letra maiúscula, uma minúscula, um número ou um caractere especial e possuir no mínimo 8 caracteres")
 	}
 
-	valid = ValidBirthdate(user)
+	// valid = ValidBirthdate(user)
 
-	if !valid {
-		regErr.ErrorsRegister("Data de nascimento inválida ou é menor de 18 anos")
-	}
+	// if !valid {
+	// 	regErr.ErrorsRegister("Data de nascimento inválida ou é menor de 18 anos")
+	// }
 
-	valid = ValidPhone(user)
+	// valid = ValidPhone(user)
 
-	if !valid {
-		regErr.ErrorsRegister("Número de telefone inválido")
-	}
+	// if !valid {
+	// 	regErr.ErrorsRegister("Número de telefone inválido")
+	// }
 
-	valid = ValidCpf(user)
+	// valid = ValidCpf(user)
 
-	if !valid {
-		regErr.ErrorsRegister("CPF inválido")
-	}
+	// if !valid {
+	// 	regErr.ErrorsRegister("CPF inválido")
+	// }
 
 	if len(regErr.Errors) > 0 {
 		err := ctx.Json(regErr.Errors)
@@ -250,28 +247,22 @@ func HandlerMagicLink(ctx *api.Context) {
 		return
 	}
 
-	ctx.WriteHeader(http.StatusOK)
 	userUuid := account.GetUserUUID(email["email"])
-	ok, token := account.IsValidMagicLink(userUuid, ctx.NewRoutes().DynamicRoute())
+	ok := account.IsValidMagicLink(userUuid, ctx.NewRoutes().DynamicRoute())
 
 	if ok {
-		if token == "retry" {
-			ctx.WriteHeader(http.StatusOK)
-			emailHandler.SendMagicLinkVerification(email["email"])
-		} else {
-			dId := account.ValidMagicLink(userUuid, ctx.Request.Header.Get("User-Agent"), ctx.Request.RemoteAddr)
-			tokenJwt := account.GenerateJWT(userUuid, dId)
+		dId := account.ValidMagicLink(userUuid, ctx.Request.Header.Get("User-Agent"), ctx.Request.RemoteAddr)
+		tokenJwt := account.GenerateJWT(userUuid, dId)
 
-			tokenJson := map[string]string{
-				"token": tokenJwt,
-			}
+		tokenJson := map[string]string{
+			"token": tokenJwt,
+		}
 
-			err = ctx.Json(tokenJson)
-			if err != nil {
-				ctx.Logger.LogAndSendSystemMessage(err.Error())
-				ctx.WriteHeader(http.StatusInternalServerError)
-				return
-			}
+		err = ctx.Json(tokenJson)
+		if err != nil {
+			ctx.Logger.LogAndSendSystemMessage(err.Error())
+			ctx.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 	} else {
 		ctx.WriteHeader(http.StatusBadRequest)
@@ -315,8 +306,89 @@ func HandlerLogin(ctx *api.Context) {
 		ctx.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	ctx.Logger.LogAndSendSystemMessage(ctx.IP)
+
+	account.ResetAttempts(ctx.IP)
 
 	emailHandler.SendMagicLinkVerification(email)
 
+	ctx.WriteHeader(http.StatusOK)
+}
+
+func HandlerNewMagicLink(ctx *api.Context) {
+	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+
+	var email map[string]string
+	err := ctx.ReadJson(&email)
+	if err != nil {
+		ctx.Logger.LogAndSendSystemMessage(err.Error())
+		ctx.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	ctx.Logger.LogAndSendSystemMessage(email["email"])
+
+	ok := account.UserExistFromEmail(email["email"])
+	if !ok {
+		ctx.Logger.LogAndSendSystemMessage("Usuário não existe")
+		ctx.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	emailHandler.SendMagicLinkVerification(email["email"])
+
+	ctx.WriteHeader(http.StatusOK)
+}
+
+func HandlerMakePasswordResetPage(ctx *api.Context) {
+	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+
+	var emailMap map[string]string
+
+	err := ctx.ReadJson(&emailMap)
+	ok := ctx.IfErrNotNull(err)
+	if !ok {
+		return
+	}
+
+	email := emailMap["email"]
+
+	ok = account.UserExistFromEmail(email)
+	if !ok {
+		ctx.Logger.LogAndSendSystemMessage("User not Exist")
+		ctx.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	emailHandler.SendMagicPasswordReset(email)
+	ctx.WriteHeader(http.StatusOK)
+}
+
+func HandlerChangePasswordReset(ctx *api.Context) {
+	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+
+	var passwordMap map[string]string
+
+	err := ctx.ReadJson(&passwordMap)
+	ok := ctx.IfErrNotNull(err)
+	if !ok {
+		ctx.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	token := ctx.NewRoutes().DynamicRoute()
+	if len(token) != 30 {
+		ctx.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	email, newPassword := passwordMap["email"], passwordMap["password"]
+	ok = account.IsValidPasswordToken(email, token)
+	if !ok {
+		ctx.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	account.ChangePassword(email, newPassword)
 	ctx.WriteHeader(http.StatusOK)
 }
