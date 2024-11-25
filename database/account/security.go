@@ -72,10 +72,11 @@ func Decrypt(encrypted string) string {
 	return string(plaintext)
 }
 
-func GenerateJWT(userID, deviceId string) string {
+func GenerateJWT(userID, password, deviceId string) string {
 	claims := jwt.MapClaims{
 		"userId":   userID,
 		"DeviceId": deviceId,
+		"password": password,
 		"exp":      time.Now().Add(7 * 24 * time.Hour).Unix(),
 	}
 

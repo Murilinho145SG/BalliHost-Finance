@@ -10,8 +10,6 @@ import (
 )
 
 func HandlerRegister(ctx *api.Context) {
-	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-
 	var user account.DataUserRegistry
 	err := ctx.ReadJson(&user)
 
@@ -236,8 +234,6 @@ func CheckErrorsRegister(user *account.DataUserRegistry, ctx *api.Context) bool 
 //This Handler is so good
 
 func HandlerMagicLink(ctx *api.Context) {
-	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-
 	var email map[string]string
 
 	err := ctx.ReadJson(&email)
@@ -252,7 +248,8 @@ func HandlerMagicLink(ctx *api.Context) {
 
 	if ok {
 		dId := account.ValidMagicLink(userUuid, ctx.Request.Header.Get("User-Agent"), ctx.Request.RemoteAddr)
-		tokenJwt := account.GenerateJWT(userUuid, dId)
+		data := account.GetUser(email["email"])
+		tokenJwt := account.GenerateJWT(userUuid, data.Password, dId)
 
 		tokenJson := map[string]string{
 			"token": tokenJwt,
@@ -270,8 +267,6 @@ func HandlerMagicLink(ctx *api.Context) {
 }
 
 func HandlerLogin(ctx *api.Context) {
-	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-
 	var values map[string]interface{}
 
 	err := ctx.ReadJson(&values)
@@ -316,8 +311,6 @@ func HandlerLogin(ctx *api.Context) {
 }
 
 func HandlerNewMagicLink(ctx *api.Context) {
-	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-
 	var email map[string]string
 	err := ctx.ReadJson(&email)
 	if err != nil {
@@ -341,8 +334,6 @@ func HandlerNewMagicLink(ctx *api.Context) {
 }
 
 func HandlerMakePasswordResetPage(ctx *api.Context) {
-	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-
 	var emailMap map[string]string
 
 	err := ctx.ReadJson(&emailMap)
@@ -365,8 +356,6 @@ func HandlerMakePasswordResetPage(ctx *api.Context) {
 }
 
 func HandlerChangePasswordReset(ctx *api.Context) {
-	ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-
 	var passwordMap map[string]string
 
 	err := ctx.ReadJson(&passwordMap)

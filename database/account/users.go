@@ -221,7 +221,7 @@ type UserData struct {
 	MagicLinkId         string
 	MagicLinkVerified   bool
 	MagicLinkExpiration time.Time
-	Devices                []Devices
+	Devices             []Devices
 }
 
 type Devices struct {
@@ -600,7 +600,7 @@ func RegistryPasswordToken(email, token string) {
 
 	_, err = db.Exec("UPDATE userinfo SET magic_password_id = ?, magic_password_expiration = ? WHERE uuid = ?",
 		token,
-		time.Now().Add(10 * time.Minute).Format(time.DateTime),
+		time.Now().Add(10*time.Minute).Format(time.DateTime),
 		userUuid)
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
@@ -630,13 +630,13 @@ func IsValidPasswordToken(email, token string) bool {
 	if dToken != token {
 		return false
 	}
-	
+
 	expiration, err := time.ParseInLocation(time.DateTime, expirationStr, time.Local)
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
 		return false
 	}
-	
+
 	if expiration.Before(time.Now()) {
 		logger.LogAndSendSystemMessage("Before")
 		_, err = db.Exec("UPDATE userinfo SET magic_password_id = ? WHERE uuid = ?", "", userUuid)
@@ -669,4 +669,24 @@ func ChangePassword(email, newPassword string) {
 	userUuid := GetUserUUID(email)
 
 	_, err = db.Exec("UPDATE userinfo SET magic_password_id = ? WHERE uuid = ?", "", userUuid)
+}
+
+func ComparePasswords(userId, jwtPassword string) bool {
+	logger := logs.NewSistemLogger()
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return false
+	}
+	defer db.Close()
+
+	var dbPassword string
+
+	err = db.QueryRow("SELECT password FROM userdata WHERE uuid = ?", userId).Scan(&dbPassword)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return false
+	}
+
+	return Decrypt(dbPassword) == jwtPassword
 }

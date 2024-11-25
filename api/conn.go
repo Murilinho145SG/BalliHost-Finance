@@ -8,6 +8,7 @@ import (
 )
 
 type ApiFunc func(ctx *Context)
+type ApiFuncMiddleWare func(ctx *Context, userId string)
 
 type Context struct {
 	Request      *http.Request
@@ -79,6 +80,9 @@ func (ctx *Context) Return() {
 
 func Post(route string, handler func(ctx *Context)) {
 	http.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+
 		if r.Method == http.MethodOptions {
 			w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 			w.WriteHeader(http.StatusOK)
@@ -89,6 +93,8 @@ func Post(route string, handler func(ctx *Context)) {
 			http.Error(w, "Wrong Method", http.StatusMethodNotAllowed)
 			return
 		}
+		
+		fmt.Println("ta aqui")
 
 		ctx := NewContext(w, r, route)
 		handler(ctx)
@@ -97,7 +103,15 @@ func Post(route string, handler func(ctx *Context)) {
 
 func Get(route string, handler func(ctx *Context)) {
 	http.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Methods", "GET")
+		//w.Header().Set("Access-Control-Allow-Methods", "GET")
+		w.Header().Set("Access-Control-Allow-Origin", "*") // Use "*" para todos os domínios ou "http://localhost:3000" para restringir.
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 
 		if r.Method != http.MethodGet {
 			http.Error(w, "Wrong Method", http.StatusMethodNotAllowed)

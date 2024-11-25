@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"prodata/api"
-	"prodata/logs"
 	"strings"
 	"time"
 
@@ -15,11 +14,14 @@ import (
 // MiddleWare para checar se o token é válido para páginas normais
 // como áreas de cliente e informações próprias, segurança básica apenas
 // para pessoas normais
-func Authenticate(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger := logs.NewSistemLogger()
+func Authenticate(next api.ApiFuncMiddleWare) api.ApiFunc {
+	return func(ctx *api.Context) {
+		if ctx.Request.Method == http.MethodOptions {
+			ctx.WriteHeader(http.StatusOK)
+			return
+		}
 
-		tokenString := r.Header.Get("Authorization")
+		tokenString := ctx.Request.Header.Get("Authorization")
 
 		if len(tokenString) > 7 && tokenString[:7] == "Bearer " {
 			tokenString = tokenString[7:]
@@ -27,29 +29,37 @@ func Authenticate(next http.HandlerFunc) http.HandlerFunc {
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
-				logger.LogAndSendSystemMessage("Invalid token, SigningMethod")
+				ctx.Error("Invalid token", http.StatusUnauthorized)
+				ctx.Logger.LogAndSendSystemMessage("Invalid token, SigningMethod")
 				return nil, nil
 			}
 			return []byte(os.Getenv("JWTKEY")), nil
 		})
 
 		if err != nil || !token.Valid {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
-			logger.LogAndSendSystemMessage(err.Error())
+			ctx.Error(err.Error(), http.StatusUnauthorized)
+			ctx.Logger.LogAndSendSystemMessage(err.Error())
 			return
 		}
 
 		claims := token.Claims.(jwt.MapClaims)
 
-		uuid := claims["userId"].(string)
-		if !UserExist(uuid) {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
-			logger.LogAndSendSystemMessage("Invalid token, User does not exist")
+		userUuid := claims["userId"].(string)
+		if !UserExist(userUuid) {
+			ctx.Error("Invalid token", http.StatusUnauthorized)
+			ctx.Logger.LogAndSendSystemMessage("Invalid token, User does not exist")
 			return
 		}
 
-		next(w, r)
+		password := claims["password"].(string)
+
+		if !ComparePasswords(userUuid, password) {
+			ctx.Error("Invalid token", http.StatusUnauthorized)
+			ctx.Logger.LogAndSendSystemMessage("Invalid token, Password is invalid")
+			return
+		}
+
+		next(ctx, userUuid)
 	}
 }
 
