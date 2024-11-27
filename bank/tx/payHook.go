@@ -16,14 +16,14 @@ func PayHook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//account.GetUser()
-	//
-	//request := payment.Request{
-	//	TransactionAmount: 1,
-	//	PaymentMethodID: "pix",
-	//    Payer: &payment.PayerRequest{
-	//		Email:
-	//	},
-	//}
+
+	// request := payment.Request{
+	// 	TransactionAmount: 1,
+	// 	PaymentMethodID:   "pix",
+	// 	Payer: &payment.PayerRequest{
+	// 		Email: "",
+	// 	},
+	// }
 
 	//bank.Create(request)
 }

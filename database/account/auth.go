@@ -16,10 +16,10 @@ import (
 // para pessoas normais
 func Authenticate(next api.ApiFuncMiddleWare) api.ApiFunc {
 	return func(ctx *api.Context) {
-		if ctx.Request.Method == http.MethodOptions {
-			ctx.WriteHeader(http.StatusOK)
-			return
-		}
+		// if ctx.Request.Method == http.MethodOptions {
+		// 	ctx.WriteHeader(http.StatusOK)
+		// 	return
+		// }
 
 		tokenString := ctx.Request.Header.Get("Authorization")
 

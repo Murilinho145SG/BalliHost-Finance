@@ -2,6 +2,7 @@ package user
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"prodata/api"
 	"prodata/database/account"
@@ -380,4 +381,17 @@ func HandlerChangePasswordReset(ctx *api.Context) {
 
 	account.ChangePassword(email, newPassword)
 	ctx.WriteHeader(http.StatusOK)
+}
+
+func HandlerErrors(ctx *api.Context) {
+	b, err := io.ReadAll(ctx.Request.Body)
+	if err != nil {
+		return
+	}
+
+	if err != nil {
+		return
+	}
+
+	ctx.Logger.LogAndSendSystemMessage("Error: " + ctx.IP + " value:" + string(b))
 }

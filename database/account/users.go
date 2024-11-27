@@ -120,9 +120,9 @@ func CreateUser(user *DataUserRegistry) {
 
 	userUUID := GetUserUUID(user.Email)
 
-	query = "INSERT INTO userinfo (uuid, auth, admin, devices) VALUES (?, ?, ?, ?)"
+	query = "INSERT INTO userinfo (uuid, auth, admin, devices, data) VALUES (?, ?, ?, ?, ?)"
 	_, err = db.Exec(query,
-		userUUID, 0, 0, "[]")
+		userUUID, 0, 0, "[]", "[]")
 
 	if err != nil {
 		logger.LogAndSendSystemMessage(err.Error())
@@ -689,4 +689,124 @@ func ComparePasswords(userId, jwtPassword string) bool {
 	}
 
 	return Decrypt(dbPassword) == jwtPassword
+}
+
+type Services struct {
+	Id     string
+	Name   string
+	Price  float64
+	Status string
+	Type   string
+	Date   string
+}
+
+func HasServices(userId string) bool {
+	logger := logs.NewSistemLogger()
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return false
+	}
+	defer db.Close()
+
+	ok := UserExist(userId)
+
+	if !ok {
+		logger.LogAndSendSystemMessage("Usuário com id: " + userId + " não existe")
+	}
+
+	var dataStr string
+	err = db.QueryRow("SELECT data FROM userinfo WHERE uuid = ?", userId).Scan(&dataStr)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false
+		}
+
+		logger.LogAndSendSystemMessage(err.Error())
+		return false
+	}
+
+	return true
+}
+
+func GetServices(userId string) []Services {
+	logger := logs.NewSistemLogger()
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return nil
+	}
+	defer db.Close()
+
+	if !HasServices(userId) {
+		return nil
+	}
+
+	var dataStr string
+	err = db.QueryRow("SELECT data FROM userinfo WHERE uuid = ?", userId).Scan(&dataStr)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return nil
+	}
+
+	var services []Services
+	err = json.Unmarshal([]byte(dataStr), &services)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return nil
+	}
+
+	return services
+}
+
+func AddServices(userId string, service *Services) {
+	logger := logs.NewSistemLogger()
+	db, err := database.InitializeDB()
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+	defer db.Close()
+
+	if !HasServices(userId) {
+		_, err := db.Exec("UPDATE userinfo SET data = ? WHERE uuid = ?", "[]", userId)
+		if err != nil {
+			logger.LogAndSendSystemMessage(err.Error())
+			return
+		}
+	}
+
+	var bytes []byte
+
+	servicesPointer := GetServices(userId)
+	if servicesPointer == nil {
+		bytes, err = json.Marshal([]Services{*service})
+		if err != nil {
+			logger.LogAndSendSystemMessage(err)
+			return
+		}
+	} else {
+		services := servicesPointer
+
+		services = append(services, *service)
+		bytes, err = json.Marshal(services)
+		if err != nil {
+			logger.LogAndSendSystemMessage(err.Error())
+			return
+		}
+	}
+
+	_, err = db.Exec("UPDATE userinfo SET data = ? WHERE uuid = ?", string(bytes), userId)
+	if err != nil {
+		logger.LogAndSendSystemMessage(err.Error())
+		return
+	}
+}
+
+func RemoveServices() {}
+
+func EditServices() {}
+
+func GenerateInvoice() {
+	
 }
